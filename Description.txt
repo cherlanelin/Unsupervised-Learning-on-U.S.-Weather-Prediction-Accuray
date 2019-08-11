@@ -1,0 +1,40 @@
+One common usage of using models to predict/forecast an outcome is Weather.  We see the weather forecasts every day and use them in planning.  These forecasts are also an example of where close is good enough, if the forecasted high temperature for a day is a couple of degrees different from the actual high temperature then it will usually not make much of a difference in whether we chose to wear a coat, jacket, or neither.  But if the forecast had been off by 20 degrees, then it would have made a huge difference.
+
+But how accurate are these forecasts?  While they are freely available in multiple formats, they are not archived as a general rule for easy comparison to actual results.
+
+This data challenge is too look at that question along with other related questions.  The main data set is the result of storing the forecasts for approximately 3 years in order to evaluate how forecasts change as the forecasted date gets closer and how they compare to actual results.
+
+First one hundred and thirteen (113) cities in the United States were selected such that the cities were fairly spread out (the starting set was from an old S-PLUS built-in data set, ), at least one city was chosen in each state, and weather forecast data was available for the cities.
+
+An R script was written to harvest the forecasts from the National Weather Service website and the script was run early each morning (usually before the low temperature for the day occurred).  Some dates were not recorded due to computer issues.  If the weather service did not return data for a given city, then one additional attempt to download the data for that city was made after the other cities were downloaded (the order in the data set reflects this), if the data was still not available then that city was skipped for that day.
+
+The data was downloaded from the following URL with "<LAT>" and "<LON>" replaced by the latitude and longitude of the given city:
+http://forecast.weather.gov/MapClick.php?lat=<LAT>&lon=<LON>&unit=0&lg=english&FcstType=dwml
+
+A more visual friendly version of the webpage can be viewed by removing "&FcstType=dwml" from the end of the URL.
+
+The data was downloaded early in the morning on most days, before the low temperature of the day.  Occasionally there was a problem and the code was rerun later in the day.
+
+For comparison, historic data of actual weather were also downloaded for the same time period.  The historical weather was downloaded using the "weatherData" package for R (getSummarizedWeather function).  The airport closest to the latitude and longitude of the city with data over the period was selected and historic data for those airports was downloaded.  
+
+Note that the comparison of the predictions to the historical data is not truly fair.  The predictions are an average over an area and the historical data was measured at a specific point and that point in some cases may not be within the area predicted (but is close).  The prediction areas may have changed over the 3 years as well.
+
+There are 3 data files, locations.csv, forecast.dat, and histWeather.csv.
+
+The locations.csv file is a comma separated value file that contains information on the cities for which the forecasts was made.  The columns are city, state, longitude, latitude, and AirPtCd.  The latitude and longitude columns were used to get the forecasts and the corresponding airport code (AirPtCd) was used to get the historical measurements.
+
+The forecast.dat file is a white space separated file with about 3 years worth of forecasts.  This file does not have a header row.  The first column is the city number corresponding to the row in the locations.csv file, so 1 means Eastport, Maine and 113 means Honolulu, Hawaii.  The second column is the date being forecasted, the 3rd column is the forecasted value.  The 4th column indicates what value is being forecast (MinTemp, minimum temperature; MaxTemp, maximum temperature; and ProbPrecip, the probability of precipitation).  The 5th column is the date that the forecast was made on.  The temperatures are measured in degrees Fahrenheit.  There are 2 probabilities of precipitation forecasts for each day, the first is the morning prediction and the 2nd is the afternoon/evening prediction.
+
+The histWeather.csv file is a comma separated file with the historic measures of weather from the airports.  The main columns of interest are: AirPtCd which is the airport code for where the measurement were made and corresponds to the same column in the locations.csv file; Date which is the date of the measurement; Max_TemperatureF and Min_TemperatureF which are the maximum and minimum recorded temperature for the date; and PrecipitationIn which is the amount of precipitation in inches of water.
+
+You are welcome to download additional weather data for other locations for use in your analysis.
+
+Possible questions for analysis:
+
+What is the distribution of the errors in forecast? How does this change with the closeness of the forecast?
+
+Are some locations more stable or variable than others?
+
+Has anything changed over the 3 years that the data was collected?
+
+Other questions that you think of.
