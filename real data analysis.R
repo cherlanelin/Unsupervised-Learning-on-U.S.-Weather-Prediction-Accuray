@@ -3,11 +3,13 @@
 ## The main content of this file includes:
 ##     0. Installing required packages 
 ##     1. Data importing and dataset merging
-##     2. 
+##     2. Smooth FPCA on B-spline Non-parametric Regression
+##     3. Clustering
+##     4. Final Result Visualization
 ######################################################################################
 
 
-## Installing required packages
+################################## Installing required packages ######################
 # ipak, a function for checking the the installation of the packages
 ipak <- function(pkg){
   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
@@ -23,8 +25,12 @@ packages <- c("ggplot2", "dplyr", "tidyverse", "tidyr", "geosphere",
               "ggthemes","gridExtra","factoextra", "fiftystater","randomForest", 
               "NbClust","funFEM","fda.usc","tclust","dtwclust")
 ipak(packages)
+## The package fiftystater is for the U.S map visualization, and it may be unavailable on CRAN
+## So its achieved file is attached in the Github repository with the path 
 
-## Importing each dataset
+
+################################# Data importing, dataset merging and data preprocessing ##################
+## 1. Importing each dataset
 #Location Dataset
 loc <- read.csv("locations.csv",header = T, stringsAsFactors = F)
 loc$city_index <- as.numeric(rownames(loc))
@@ -48,7 +54,7 @@ forecast <- forecast %>%
     forecast_value = as.numeric(forecast_value)
   )
 
-## Joining the dataset
+## 2. Joining the dataset
 # merge MinTemp with MaxTemp
 fore_min_max <- full_join(
   x = forecast %>% filter(forecast_goal=="MinTemp") %>%  dplyr::select(-forecast_goal) %>% na.omit() %>% unique(),
@@ -100,7 +106,7 @@ df.all <- left_join( x = df.min.max, y = hist %>% select(-Min_TemperatureF,
 save(df.all, file = "df.min.max.RData")
 
 
-# Data preprocessing
+## 3. Data preprocessing
 load("df.min.max.RData")
 df.all = df.all %>% mutate(city = factor(city), state = factor(state))
 df.all$city_state = paste(df.all$city,df.all$state)
@@ -159,8 +165,12 @@ names(mindiff.state.1) = tolower(names(mindiff.state.1))
 mindiff.date.1 = try.1$forecast_date
 mindiff.state.mat.1 = matrix(unlist(mindiff.state.1),ncol = 50)
 
-## Fitting Longitudinal Data to Functional Data Using B-spline
-# 1. Generalized Cross-validation fo Knots Selection
+
+
+################### Smooth FPCA on B-spline Non-parametric Regression ######################
+
+## 1. Fitting Longitudinal Data to Functional Data Using B-spline
+# Generalized Cross-validation fo Knots Selection
 TableGCV<-c()
 for (j in 13:37) { # the interval width is select from every 4 months to every 1 month
   bks.cv = as.Date(quantile(unclass(mindiff.date.1), seq(0,1,length = j)), origin = "1970-01-01")
@@ -196,15 +206,13 @@ err1.fd<-smooth.basis(argvals = mindiff.date.1, y = mindiff.state.mat.1, err1.ba
 plot(err1.fd,ylab = "Absolute Prediction Error (F)", xlab = "date")
 
 
-################### Smooth FPCA on B-spline Non-parametric Regression ######################
-## 1. Using One-curve-out method to select the penalty size of the PCA Smoothing
-
-## Step 1, determine the number of PC Functions through Non-smoothing PCA 
-## (at least 90% of Variation should be explained in the raw PC functions)
+## 2. Using One-curve-out method to select the penalty size of the PCA Smoothing
+# Step 1, determine the number of PC Functions through Non-smoothing PCA 
+# (at least 90% of Variation should be explained in the raw PC functions)
 raw.fpca = pca.fd(err1.fd,nharm=5)
 sum(raw.fpca$varprop) # Reach 90% Variation Excatly with 5 PC functions
 
-## Step 2, Tuning Lambda
+# Step 2, Tuning Lambda
 # Function for calculating the CV error for a given lambda 
 get.mcv.smoothfpca = function(lambda){
   range = c(as.numeric(min(mindiff.date.1)),as.numeric(max(mindiff.date.1)))
@@ -314,6 +322,8 @@ fem.icl$K ##Suggest 4
 
 ### According to the Simulation Study, FunFEM has outstanding performance compared to K-means on Cluster Number Selection
 ### So we believe the Cluster Number Selection Result in FunFEM, and choose cluster number K = 4
+
+
 
 ############### Clustering Goal 2: Final Clustering Result with Cluster Number = 4
 ####### Method 1: K-means on Smoothed FPC Scores 
@@ -501,6 +511,8 @@ kmeans.fem.4 <- funFEM(err1.fd,K = 4,model = "all",crit = "icl", init = "kmeans"
 # Final clustering Result 
 fpca.smooth <- data.frame(fpca.smooth, fem.4.icl = kmeans.fem.4$cls)
 
+
+
 ####### Matching the Cluster Results Among 4 Clustering Methods Using Hungarian Algorithm For Cluster Mapping
 # labels from cluster A will be matched on the labels from cluster B
 minWeightBipartiteMatching <- function(clusteringA, clusteringB) {
@@ -548,6 +560,8 @@ fpca.smooth$fem.4[fpca.smooth$fem.4 == 0] = 2
 fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 1] = 0
 fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 2] = 1
 fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 0] = 2
+
+
 
 ############################## Final Result Visualization ###################################
 ######## Map Visualization
