@@ -165,8 +165,8 @@ names(mindiff.state.1) = tolower(names(mindiff.state.1))
 mindiff.date.1 = try.1$forecast_date
 mindiff.state.mat.1 = matrix(unlist(mindiff.state.1),ncol = 50)
 
-
-
+write.csv(mindiff.date.1,"mindiff_day1_nona.csv", row.names = F)
+write.csv(mindiff.state.1,"mindiff_state1_nona.csv", row.names = F)
 ################### Smooth FPCA on B-spline Non-parametric Regression ######################
 
 ## 1. Fitting Longitudinal Data to Functional Data Using B-spline
@@ -297,26 +297,30 @@ fpca.smooth <- data.frame(state = colnames(mindiff.state.1),
 
 fpca.score = fpca.smooth%>%dplyr::select(pc1,pc2,pc3,pc4,pc5)
 # Select number of cluster
+set.seed(888)
 fpc.kmeans.num <- NbClust(fpca.score, distance = "euclidean", 
                           min.nc=2, max.nc=8, 
                           method = "kmeans", 
                           index = "all")
-max(fpc.kmeans.num$Best.partition) ## suggest 2 or 6
+max(fpc.kmeans.num$Best.partition) ## suggest 2 
 
 ####### Method 2: K-means on B-spline COefficients
 err1.fd.coefs = t(err1.fd$coefs)
 # Select number of cluster
+set.seed(888)
 bsp.kmeans.num <- NbClust(err1.fd.coefs, distance = "euclidean", 
                           min.nc=2, max.nc=8, 
                           method = "kmeans", 
                           index = "all")
-max(bsp.kmeans.num$Best.partition) ## suggest 2 or 3
+max(bsp.kmeans.num$Best.partition) ## suggest 2 
 
 ####### Method 3: FunFEM Clustering Using BIC Criterions
+set.seed(888)
 fem.bic = funFEM(err1.fd,K = 2:8,model = "all", crit = "bic", init = "kmeans",eps = 1e-5)
 fem.bic$K ##Suggest 4
 
 ####### Method 4: FunFEM Clustering Using ICL Criterions
+set.seed(888)
 fem.icl = funFEM(err1.fd,K = 2:8,model = "all", crit = "icl", init = "kmeans",eps = 1e-5)
 fem.icl$K ##Suggest 4
 
@@ -336,7 +340,7 @@ for (rr in 1:8){
   set.seed(seed.candidate[rr])
   
   fpca.smooth.temp = fpca.smooth 
-  fpc4.temp <- kmeans(fpca.score.large , 4) # 4 cluster solution
+  fpc4.temp <- kmeans(fpca.score , 4) # 4 cluster solution
   fpca.smooth.temp$fpca4 <- fpc4.temp$cluster
   
   ## 4 clusters
@@ -369,7 +373,7 @@ for (rr in 1:8){
 
 best.fpc.seed<- sd.fpc.clu4[which.min(sd.fpc.clu4[,2]),1] ## Choose 8
 set.seed(best.fpc.seed)
-kmeans.fpca.4 <- kmeans(fpca.score.large, 4) # Final 4 cluster solution
+kmeans.fpca.4 <- kmeans(fpca.score, 4) # Final 4 cluster solution
 # Final clustering Result 
 fpca.smooth <- data.frame(fpca.smooth, fpc.4.large = kmeans.fpca.4$cluster)
 
@@ -512,7 +516,6 @@ kmeans.fem.4 <- funFEM(err1.fd,K = 4,model = "all",crit = "icl", init = "kmeans"
 fpca.smooth <- data.frame(fpca.smooth, fem.4.icl = kmeans.fem.4$cls)
 
 
-
 ####### Matching the Cluster Results Among 4 Clustering Methods Using Hungarian Algorithm For Cluster Mapping
 # labels from cluster A will be matched on the labels from cluster B
 minWeightBipartiteMatching <- function(clusteringA, clusteringB) {
@@ -548,7 +551,6 @@ minWeightBipartiteMatching <- function(clusteringA, clusteringB) {
   return(result)
 }
 
-minWeightBipartiteMatching(fpca.smooth$bsp.4,fpca.smooth$fpc.4)
 minWeightBipartiteMatching(fpca.smooth$bsp.4,fpca.smooth$fpc.4.large)
 minWeightBipartiteMatching(fpca.smooth$bsp.4,fpca.smooth$fem.4)
 minWeightBipartiteMatching(fpca.smooth$fem.4,fpca.smooth$fem.4.icl)
@@ -560,9 +562,6 @@ fpca.smooth$fem.4[fpca.smooth$fem.4 == 0] = 2
 fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 1] = 0
 fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 2] = 1
 fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 0] = 2
-
-
-
 ############################## Final Result Visualization ###################################
 ######## Map Visualization
 region <- read.csv("region-to-state.new.csv",header = T, stringsAsFactors = F)
@@ -578,6 +577,8 @@ fpc4.smooth.tuned.large = ggplot(fpca.smooth, aes(map_id = state)) +
   labs(x = "",y = "",  fill = "Cluster")+
   geom_text(data = region_noremoted, aes(long,lag,label = state.short), size=3)+ 
   fifty_states_inset_boxes()+ borders("state")
+# If there is an error when visualizing the plot, please run
+#dev.off() 
 fpc4.smooth.tuned.large
 
 # B-spline Coefficients with Start Point Tuning
@@ -589,6 +590,8 @@ bsp4.tuned = ggplot(fpca.smooth, aes(map_id = state)) +
   labs(x = "",y = "",  fill = "Cluster")+
   geom_text(data = region_noremoted, aes(long,lag,label = state.short), size=3)+ 
   fifty_states_inset_boxes()+ borders("state")
+# If there is an error when visualizing the plot, please run
+#dev.off() 
 bsp4.tuned
 
 # FunFEM BIC
@@ -600,6 +603,8 @@ fem4.tuned = ggplot(fpca.smooth, aes(map_id = state)) +
   labs(x = "",y = "",  fill = "Cluster")+
   geom_text(data = region_noremoted, aes(long,lag,label = state.short), size=3)+ 
   fifty_states_inset_boxes()+ borders("state")
+# If there is an error when visualizing the plot, please run
+#dev.off() 
 fem4.tuned
 
 # FunFEM ICL
@@ -611,6 +616,8 @@ fem4.tuned.icl = ggplot(fpca.smooth, aes(map_id = state)) +
   labs(x = "",y = "",  fill = "Cluster")+
   geom_text(data = region_noremoted, aes(long,lag,label = state.short), size=3)+ 
   fifty_states_inset_boxes()+ borders("state")
+# If there is an error when visualizing the plot, please run
+#dev.off() 
 fem4.tuned.icl
 
 ######## Curves Visualization in each Cluster with 95% Confidence Interval
@@ -712,3 +719,5 @@ plot.ci(fpca.smooth, mindiff.state.1, "fpc.large")
 plot.ci(fpca.smooth, mindiff.state.1, "bsp")
 plot.ci(fpca.smooth, mindiff.state.1, "fem")
 plot.ci(fpca.smooth, mindiff.state.1, "fem.icl")
+
+write.csv(fpca.smooth, file = 'real_analysis_result.csv',row.names = F)

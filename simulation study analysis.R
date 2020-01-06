@@ -156,8 +156,7 @@ cluster.select.num = function(simu.all,n.group,knots.num,nharm,plotting = FALSE)
                                method = "kmeans", 
                                index = "all")
   bsp.clu.select =  max(coeff.kmeans.best$Best.partition)
-  b = Sys.time()
-  a-b
+  
   
   ## kmeans on smoothed FPC scores
   range = c(as.numeric(min(t)),as.numeric(max(t)))
@@ -170,8 +169,7 @@ cluster.select.num = function(simu.all,n.group,knots.num,nharm,plotting = FALSE)
                              method = "kmeans", 
                              index = "all")
   fpc.clu.select =  max(fpc.kmeans.best$Best.partition)
-  b = Sys.time()
-  a-b
+  
   
   simu.clunum.compare = rbind(fem.num.bic,fem.num.icl,
                               bsp.clu.select,fpc.clu.select)
@@ -248,7 +246,7 @@ get.df.cluster = function(simu.all,n.group,knots.num,nharm){
   df.fpc.k <- fpc.k$cluster
   
   # Hungarian Alg
-  real = rep(c(1,2,3,4),each = 50)
+  real = rep(c(1,2,3,4),each = n.group)
   a = minWeightBipartiteMatching(df.bsp.k,real)
   df.bsp.k.1 = a[df.bsp.k]
   
@@ -281,7 +279,6 @@ get.clu.accuracy = function(df.clu, n.group){
 
 
 # Function on Average Within Cluster SD and Distance to Real Mean of Cluster
-
 get.clu.value = function(df, df.clu, n.group, method){
   
   t = df$t
@@ -679,7 +676,6 @@ simunum.round4.20 = na.omit(simunum.round4.20)
 write.csv(simunum.round4.20, file = "simunum_round4_20.csv", row.names = FALSE)
 
 # Round 7: n = 50, Sigma = 1, absolute-value proportion noise
-a = Sys.time()
 simunum.round3.50= data.frame(matrix(ncol = 5, nrow = 1))
 colnames(simunum.round3.50) <- c("method","index","clu.num","n.group","round")
 seed = 888
@@ -1082,8 +1078,6 @@ for (i in  1:50){
   simuvid.round3.20.3 = rbind(simuvid.round3.20.3,cluster.result)
   seed = seed+1000
 }
-b = Sys.time()
-b-a
 simuvid.round3.20.3 = na.omit(simuvid.round3.20.3)
 write.csv(simuvid.round3.20.3, file = "simuvid_round3_20.csv", row.names = FALSE)
 
