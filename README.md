@@ -51,7 +51,7 @@ This is the R files including all the content related to simulation study. The m
 4. Clustering Validation Study
 
 ### simulation on real analysis.R
-This is the R files including all the content related to the analysis from the simulation based on real data. **Please** run the code for real application first and use the output files from the real application code first. The main content of this file includes:
+This is the R files including all the content related to the analysis from the simulation based on real data. **Please run the code real_data_analysis.R first** for real application so as to get the output files from the real data application. The main content of this file includes:
 1. Functions for Data simulation and Analysis
 2. Clustering Number Selection Validation
 3. Clustering Validation Study
