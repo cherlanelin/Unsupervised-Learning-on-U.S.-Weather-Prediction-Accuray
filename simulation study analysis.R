@@ -30,6 +30,36 @@ ipak(packages)
 
 
 ######## Functions for Data simulation and Analysis ##########################
+### Function for calculating the CV error for a given lambda 
+get.mcv.smoothfpca = function(lambda, data, ngroup, n_harm){
+  range = c(as.numeric(min(data$t)),as.numeric(max(data$t)))
+  bks.1 = as.Date(quantile(unclass(data$t), seq(0,1,length = 15)), origin = "1970-01-01")
+  err1.basis = create.bspline.basis(rangeval = c(min(data$t),max(data$t)), breaks = bks.1, norder = 4)
+  mindiff.state.mat.1 = matrix(unlist(data[,-which(names(data) %in% c("t"))]),ncol = 4*ngroup)
+  err1.fd<-smooth.basis(argvals = data$t, y = mindiff.state.mat.1, err1.basis)$fd
+  bspFpcPen = fdPar(fdobj=err1.basis, Lfdobj=2, lambda = lambda)
+  smooth.fpc.cv = c()
+  for (i in 1:50){
+    smooth.fpc.raw = err1.fd
+    smooth.fpc.raw$coefs = err1.fd$coefs[,-i]
+    smooth.fpc = pca.fd(smooth.fpc.raw,nharm=n_harm,harmfdPar=bspFpcPen)
+    smooth.fpc.coefs = as.matrix(smooth.fpc$harmonics$coefs) #17*5
+    smooth.fpc.score = as.matrix(smooth.fpc$scores) #49*5
+    
+    smooth.fpc.xi.fd = err1.fd
+    smooth.fpc.xi.fd$coefs = err1.fd$coefs[,i]
+    smooth.fpc.xi = eval.fd(data$t,smooth.fpc.xi.fd) - eval.fd(data$t,smooth.fpc$meanfd) #1033*1
+    smooth.fpc.basismat = eval.fd(data$t,smooth.fpc$harmonics) 
+    
+    # estimate the SSE = y'y - y'X(X'X)X'y
+    smooth.fpc.ri = t(smooth.fpc.xi)%*%smooth.fpc.xi - t(smooth.fpc.xi)%*%
+      smooth.fpc.basismat%*%ginv(t(smooth.fpc.basismat)%*%smooth.fpc.basismat)%*%
+      t(smooth.fpc.basismat)%*%smooth.fpc.xi
+    smooth.fpc.cv = c(smooth.fpc.cv,smooth.fpc.ri)
+  }
+  return(sum(smooth.fpc.cv))
+}
+
 ### Data Simulation Function with Common Noise
 generate.curve<-function(t.min,t.max,t.by,n.group,err.sd){
   t = seq(t.min, t.max, by = t.by)
@@ -315,7 +345,7 @@ get.clu.value = function(df, df.clu, n.group, method){
   clu1.ts = matrix(unlist(df[,names(df)%in%clu1]),ncol = length(clu1))
   clu1.fd = smooth.basis(argvals = t, y = clu1.ts, fd.basis)$fd
   clu1.mu = mean.fd(clu1.fd)
-  clu1.sd = int.simpson(sd.fd(clu1.fd),equi=TRUE,method="TRAPZ")
+  clu1.sd = int.simpson(sd.fd(clu1.fd),method="TRAPZ")
   clu1.mu.diff = mean((real.clu1 - eval.fd(t,clu1.mu))^2)
   
   ## est.clu2 
@@ -324,7 +354,7 @@ get.clu.value = function(df, df.clu, n.group, method){
   clu2.ts = matrix(unlist(df[,names(df)%in%clu2]),ncol = length(clu2))
   clu2.fd = smooth.basis(argvals = t, y = clu2.ts, fd.basis)$fd
   clu2.mu = mean.fd(clu2.fd)
-  clu2.sd = int.simpson(sd.fd(clu2.fd),equi=TRUE,method="TRAPZ")
+  clu2.sd = int.simpson(sd.fd(clu2.fd),method="TRAPZ")
   clu2.mu.diff = mean((real.clu2 - eval.fd(t,clu2.mu))^2)
   
   ## est.clu3 
@@ -333,7 +363,7 @@ get.clu.value = function(df, df.clu, n.group, method){
   clu3.ts = matrix(unlist(df[,names(df)%in%clu3]),ncol = length(clu3))
   clu3.fd = smooth.basis(argvals = t, y = clu3.ts, fd.basis)$fd
   clu3.mu = mean.fd(clu3.fd)
-  clu3.sd = int.simpson(sd.fd(clu3.fd),equi=TRUE,method="TRAPZ")
+  clu3.sd = int.simpson(sd.fd(clu3.fd),method="TRAPZ")
   clu3.mu.diff = mean((real.clu3 - eval.fd(t,clu3.mu))^2)
   
   ## est.clu4 
@@ -342,21 +372,18 @@ get.clu.value = function(df, df.clu, n.group, method){
   clu4.ts = matrix(unlist(df[,names(df)%in%clu4]),ncol = length(clu4))
   clu4.fd = smooth.basis(argvals = t, y = clu4.ts, fd.basis)$fd
   clu4.mu = mean.fd(clu4.fd)
-  clu4.sd = int.simpson(sd.fd(clu4.fd),equi=TRUE,method="TRAPZ")
+  clu4.sd = int.simpson(sd.fd(clu4.fd),method="TRAPZ")
   clu4.mu.diff = mean((real.clu4 - eval.fd(t,clu4.mu))^2)
   
   return(c(mean(clu1.sd,clu2.sd,clu3.sd,clu4.sd),
            mean(clu1.mu.diff,clu2.mu.diff,clu3.mu.diff,clu4.mu.diff)))
 }
 
-
-
 ######## B-spline Basis Selection and Smooth FPCA Lambda Selection ##########################
 # We will discuss 2 scenarios: common noise V.S. absolute value-proportion noise
 # Under each scenario, we consider:
 # 1. The overall varianace of the noise: sigma= 1 V.S. 2
-# 2. The number of curves in each cluster: 20 V.S. 50
-# To conclude, we have 8 run of simulation 
+#  To conclude, we have 4 run of simulation 
 # (noise pattern X noise overall variance X number of cluster)
 
 ## Determine number of PC functions and smoothing parameter lambda in each situation
@@ -404,51 +431,7 @@ plot(table.lambda.mcv[,1]/5, table.lambda.mcv[,2], type = "l",
      main = "CV plot Lambda Selection Scenario 1 (n = 20, Sigma = 2)", 
      xlab = "log(Lambda) Value", ylab = "CV")
 
-# Round 3: n = 50, Sigma = 1, common noise
-set.seed(888)
-df = generate.curve(0,10,0.01,50,1)
-t = df$t
-df = df[,-which(names(df) %in% c("t"))]
-df.mat = matrix(unlist(df),ncol = 4*50)
-bks = quantile(t, seq(0,1,length = 20+1))
-df.basis = create.bspline.basis(rangeval = c(min(t),max(t)), breaks = bks, norder = 4)
-df.fd<-smooth.basis(argvals = t, y = df.mat, df.basis)$fd
-raw.fpca = pca.fd(df.fd,nharm=2) ## Select 2: reach 94.83% at PC2 (77.22% at PC1)
-sum(raw.fpca$varprop)
-
-df$t = t
-table.lambda.mcv<-c()
-for (j in -40:0) { 
-  smooth.fpc.cv  =  get.mcv.smoothfpca(10^(j/5),df,50,2)
-  table.lambda.mcv <- rbind(table.lambda.mcv,c(j,smooth.fpc.cv))
-}
-plot(table.lambda.mcv[,1]/5, table.lambda.mcv[,2], type = "l", 
-     main = "CV plot Lambda Selection Scenario 1 (n = 50, Sigma = 1)", 
-     xlab = "log(Lambda) Value", ylab = "CV")
-
-# Round 4: n = 50, Sigma = 2, common noise
-set.seed(888)
-df = generate.curve(0,10,0.01,50,2)
-t = df$t
-df = df[,-which(names(df) %in% c("t"))]
-df.mat = matrix(unlist(df),ncol = 4*50)
-bks = quantile(t, seq(0,1,length = 20+1))
-df.basis = create.bspline.basis(rangeval = c(min(t),max(t)), breaks = bks, norder = 4)
-df.fd<-smooth.basis(argvals = t, y = df.mat, df.basis)$fd
-raw.fpca = pca.fd(df.fd,nharm=7) ## Select 7: reach 90.22% at PC6 (89.27% at PC6)
-sum(raw.fpca$varprop) 
-
-df$t = t
-table.lambda.mcv<-c()
-for (j in -40:0) { 
-  smooth.fpc.cv  =  get.mcv.smoothfpca(10^(j/5),df,50,7)
-  table.lambda.mcv <- rbind(table.lambda.mcv,c(j,smooth.fpc.cv))
-}
-plot(table.lambda.mcv[,1]/5, table.lambda.mcv[,2], type = "l", 
-     main = "CV plot Lambda Selection Scenario 1 (n = 50, Sigma = 2)", 
-     xlab = "log(Lambda) Value", ylab = "CV")
-
-# Round 5: n = 20, Sigma = 1, absolute-value proportion noise
+# Round 3: n = 20, Sigma = 1, absolute-value proportion noise
 set.seed(888)
 df = generate.curve.ctvardiff(0,10,0.01,20,1)
 t = df$t
@@ -467,10 +450,10 @@ for (j in -40:0){
   table.lambda.mcv <- rbind(table.lambda.mcv,c(j,smooth.fpc.cv))
 }
 plot(table.lambda.mcv[,1]/5, table.lambda.mcv[,2], type = "l", 
-     main = "CV plot Lambda Selection Scenario 1 (n = 20, Sigma = 1)", 
+     main = "CV plot Lambda Selection Scenario 2 (n = 20, Sigma = 1)", 
      xlab = "Lambda Value", ylab = "CV")
 
-# Round 6: n = 20, Sigma = 2, absolute-value proportion noise
+# Round 4: n = 20, Sigma = 2, absolute-value proportion noise
 set.seed(888)
 df = generate.curve.ctvardiff(0,10,0.01,20,2)
 t = df$t
@@ -489,55 +472,11 @@ for (j in -40:0) {
   table.lambda.mcv <- rbind(table.lambda.mcv,c(j,smooth.fpc.cv))
 }
 plot(table.lambda.mcv[,1]/5, table.lambda.mcv[,2], type = "l", 
-     main = "CV plot Lambda Selection Scenario 1 (n = 20, Sigma = 2)", 
+     main = "CV plot Lambda Selection Scenario 2 (n = 20, Sigma = 2)", 
      xlab = "Lambda Value", ylab = "CV")
 
-# Round 7: n = 50, Sigma = 1, absolute-value proportion noise
-set.seed(888)
-df = generate.curve.ctvardiff(0,10,0.01,50,1)
-t = df$t
-df = df[,-which(names(df) %in% c("t"))]
-df.mat = matrix(unlist(df),ncol = 4*50)
-bks = quantile(t, seq(0,1,length = 20+1))
-df.basis = create.bspline.basis(rangeval = c(min(t),max(t)), breaks = bks, norder = 4)
-df.fd<-smooth.basis(argvals = t, y = df.mat, df.basis)$fd
-raw.fpca = pca.fd(df.fd,nharm=2) ## Select 2: reach 95.89% at PC2 (78.28% at PC1)
-sum(raw.fpca$varprop)
 
-df$t = t
-table.lambda.mcv<-c()
-for (j in -40:0) { 
-  smooth.fpc.cv  =  get.mcv.smoothfpca(10^(j/5),df,50,2)
-  table.lambda.mcv <- rbind(table.lambda.mcv,c(j,smooth.fpc.cv))
-}
-plot(table.lambda.mcv[,1]/5, table.lambda.mcv[,2], type = "l", 
-     main = "CV plot Lambda Selection Scenario 2 (n = 50, Sigma = 1)", 
-     xlab = "log(Lambda) Value", ylab = "CV")
-
-
-# Round 8: n = 50, Sigma = 2, absolute-value proportion noise
-set.seed(888)
-df = generate.curve.ctvardiff(0,10,0.01,50,2)
-t = df$t
-df = df[,-which(names(df) %in% c("t"))]
-df.mat = matrix(unlist(df),ncol = 4*50)
-bks = quantile(t, seq(0,1,length = 20+1))
-df.basis = create.bspline.basis(rangeval = c(min(t),max(t)), breaks = bks, norder = 4)
-df.fd<-smooth.basis(argvals = t, y = df.mat, df.basis)$fd
-raw.fpca = pca.fd(df.fd,nharm=4) ## Select 4: reach 90.78% at PC6 (89.55% at PC3)
-sum(raw.fpca$varprop) 
-
-df$t = t
-table.lambda.mcv<-c()
-for (j in -40:0) { 
-  smooth.fpc.cv  =  get.mcv.smoothfpca(10^(j/5),df,50,4)
-  table.lambda.mcv <- rbind(table.lambda.mcv,c(j,smooth.fpc.cv))
-}
-plot(table.lambda.mcv[,1]/5, table.lambda.mcv[,2], type = "l", 
-     main = "CV plot Lambda Selection Scenario 2 (n = 50, Sigma = 2)", 
-     xlab = "log(Lambda) Value", ylab = "CV")
-#### From the plots, we find that in all situation, 
-#### lambda is around 10^(-2)
+#### From the plots, we find that the lambda is around 10^(-2)
 
 
 ######## Clustering Number Selection Validation ##########################
@@ -563,6 +502,7 @@ for (i in  1:200){
 simunum.round1.20 = na.omit(simunum.round1.20)
 write.csv(simunum.round1.20, file = "simunum_round1_20.csv", row.names = FALSE)
 
+##
 # Round 2: n = 20, Sigma = 2, common noise
 simunum.round2.20= data.frame(matrix(ncol = 5, nrow = 1))
 colnames(simunum.round2.20) <- c("method","index","clu.num","n.group","round")
@@ -586,52 +526,7 @@ simunum.round2.20 = na.omit(simunum.round2.20)
 write.csv(simunum.round2.20, file = "simunum_round2_20.csv", row.names = FALSE)
 
 
-# Round 3: n = 50, Sigma = 1, common noise
-simunum.round1.50= data.frame(matrix(ncol = 5, nrow = 1))
-colnames(simunum.round1.50) <- c("method","index","clu.num","n.group","round")
-seed = 888
-for (i in  1:200){
-  set.seed(seed)
-  df = generate.curve(t.min=0,t.max=10,t.by=0.01,
-                      n.group=50,err.sd=1)
-  cluster.result = data.frame(matrix(ncol = 5, nrow = 4))
-  colnames(cluster.result) <- c("method","index","clu.num","n.group","round")
-  cluster.result$method = c("fem","fem","bsp","fpc")
-  cluster.result$index = c("bic","icl","all","all")
-  cluster.result$n.group = rep(50,each = 4)
-  cluster.result$round = rep("by = 0.01, sd = 1, common noise",each = 4)
-  cluster.result$clu.num = cluster.select.num(simu.all=df,n.group=50,knots.num=20,nharm = 2)
-  
-  simunum.round1.50 = rbind(simunum.round1.50,cluster.result)
-  seed = seed+10000*i
-}
-simunum.round1.50 = na.omit(simunum.round1.50)
-write.csv(simunum.round1.50, file = "simunum_round1_50.csv", row.names = FALSE)
-
-# Round 4: n = 50, Sigma = 2, common noise
-simunum.round2.50= data.frame(matrix(ncol = 5, nrow = 1))
-colnames(simunum.round2.50) <- c("method","index","clu.num","n.group","round")
-seed = 888
-for (i in  1:200){
-  set.seed(seed)
-  df = generate.curve(t.min=0,t.max=10,t.by=0.01,
-                      n.group=50,err.sd=2)
-  cluster.result = data.frame(matrix(ncol = 5, nrow = 4))
-  colnames(cluster.result) <- c("method","index","clu.num","n.group","round")
-  cluster.result$method = c("fem","fem","bsp","fpc")
-  cluster.result$index = c("bic","icl","all","all")
-  cluster.result$n.group = rep(50,each = 4)
-  cluster.result$round = rep("by = 0.01, sd = 2, common noise",each = 4)
-  cluster.result$clu.num = cluster.select.num(simu.all=df,n.group=50,knots.num=20,nharm = 7)
-  
-  simunum.round2.50 = rbind(simunum.round2.50,cluster.result)
-  seed = seed+10000*i
-}
-simunum.round2.50 = na.omit(simunum.round2.50)
-write.csv(simunum.round2.50, file = "simunum_round2_50.csv", row.names = FALSE)
-
-
-# Round 5: n = 20, Sigma = 1, absolute-value proportion noise
+# Round 3: n = 20, Sigma = 1, absolute-value proportion noise
 simunum.round3.20= data.frame(matrix(ncol = 5, nrow = 1))
 colnames(simunum.round3.20) <- c("method","index","clu.num","n.group","round")
 seed = 888
@@ -653,7 +548,7 @@ for (i in  1:200){
 simunum.round3.20 = na.omit(simunum.round3.20)
 write.csv(simunum.round3.20, file = "simunum_round3_20.csv", row.names = FALSE)
 
-# Round 6: n = 20, Sigma = 2, absolute-value proportion noise
+# Round 4: n = 20, Sigma = 2, absolute-value proportion noise
 simunum.round4.20= data.frame(matrix(ncol = 5, nrow = 1))
 colnames(simunum.round4.20) <- c("method","index","clu.num","n.group","round")
 seed = 888
@@ -675,62 +570,14 @@ for (i in  1:200){
 simunum.round4.20 = na.omit(simunum.round4.20)
 write.csv(simunum.round4.20, file = "simunum_round4_20.csv", row.names = FALSE)
 
-# Round 7: n = 50, Sigma = 1, absolute-value proportion noise
-simunum.round3.50= data.frame(matrix(ncol = 5, nrow = 1))
-colnames(simunum.round3.50) <- c("method","index","clu.num","n.group","round")
-seed = 888
-for (i in  1:200){
-  set.seed(seed)
-  df = generate.curve.ctvardiff(t.min=0,t.max=10,t.by=0.01,
-                                n.group=50,err.sd=1)
-  cluster.result = data.frame(matrix(ncol = 5, nrow = 4))
-  colnames(cluster.result) <- c("method","index","clu.num","n.group","round")
-  cluster.result$method = c("fem","fem","bsp","fpc")
-  cluster.result$index = c("bic","icl","all","all")
-  cluster.result$n.group = rep(50,each = 4)
-  cluster.result$round = rep("by = 0.01, sd = 1, varies noise",each = 4)
-  cluster.result$clu.num = cluster.select.num(simu.all=df,n.group=50,knots.num=20,nharm = 2)
-  
-  simunum.round3.50 = rbind(simunum.round3.50,cluster.result)
-  seed = seed+10000*i
-}
-simunum.round3.50 = na.omit(simunum.round3.50)
-write.csv(simunum.round3.50, file = "simunum_round3_50.csv", row.names = FALSE)
-
-# Round 8: n = 50, Sigma = 2, absolute-value proportion noise
-simunum.round4.50= data.frame(matrix(ncol = 5, nrow = 1))
-colnames(simunum.round4.50) <- c("method","index","clu.num","n.group","round")
-seed = 888
-for (i in  1:200){
-  set.seed(seed)
-  df = generate.curve.ctvardiff(t.min=0,t.max=10,t.by=0.01,
-                                n.group=50,err.sd=2)
-  cluster.result = data.frame(matrix(ncol = 5, nrow = 4))
-  colnames(cluster.result) <- c("method","index","clu.num","n.group","round")
-  cluster.result$method = c("fem","fem","bsp","fpc")
-  cluster.result$index = c("bic","icl","all","all")
-  cluster.result$n.group = rep(50,each = 4)
-  cluster.result$round = rep("by = 0.01, sd = 2, varies noise",each = 4)
-  cluster.result$clu.num = cluster.select.num(simu.all=df,n.group=50,knots.num=20,nharm = 4)
-  
-  simunum.round4.50 = rbind(simunum.round4.50,cluster.result)
-  seed = seed+10000*i
-}
-simunum.round4.50 = na.omit(simunum.round4.50)
-write.csv(simunum.round4.50, file = "simunum_round4_50.csv", row.names = FALSE)
-
 ### Summary analysis of the cluster number detection.
 r1.20.raw = read.csv("simunum_round1_20.csv",header = TRUE)
-r1.50.raw = read.csv("simunum_round1_50.csv",header = TRUE)
 
 r2.20.raw = read.csv("simunum_round2_20.csv",header = TRUE)
-r2.50.raw = read.csv("simunum_round2_50.csv",header = TRUE)
 
 r3.20.raw = read.csv("simunum_round3_20.csv",header = TRUE)
-r3.50.raw = read.csv("simunum_round3_50.csv",header = TRUE)
 
 r4.20.raw = read.csv("simunum_round4_20.csv",header = TRUE)
-r4.50.raw = read.csv("simunum_round4_50.csv",header = TRUE)
 
 #round 1
 r1.20 = r1.20.raw%>%group_by(round, n.group, method,
@@ -752,27 +599,7 @@ r4.20 = r4.20.raw%>%group_by(round, n.group, method,
                              index, clu.num)%>%summarize(count = n())
 r4.20
 
-#round 5
-r1.50 = r1.50.raw%>%group_by(round, n.group, method,
-                             index, clu.num)%>%summarize(count = n())
-r1.50
-
-#round 6
-r2.50 = r2.50.raw%>%group_by(round, n.group, method,
-                             index, clu.num)%>%summarize(count = n())
-r2.50
-
-#round 7
-r3.50 = r3.50.raw%>%group_by(round, n.group, method,
-                             index, clu.num)%>%summarize(count = n())
-r3.50
-
-#round 8
-r4.50 = r4.50.raw%>%group_by(round, n.group, method,
-                             index, clu.num)%>%summarize(count = n())
-r4.50
-
-
+##
 ########### Clustering Validation Study #####################################
 # Round 1: n = 20, Sigma = 1, common noise
 simuvid.round1.20= data.frame(matrix(ncol = 7, nrow = 1))
@@ -840,7 +667,7 @@ for (i in  1:100){
 
 simuvid.round2.20.1 = simuvid.round2.20
 seed = 8888
-for (i in  1:100){
+for (i in  1:90){
   set.seed(seed)
   df = generate.curve(t.min=0,t.max=10,t.by=0.01,
                       n.group=20,err.sd=2)
@@ -896,75 +723,7 @@ for (i in  1:10){
 simuvid.round2.20.2 = na.omit(simuvid.round2.20.2)
 write.csv(simuvid.round2.20.2[1:800,], file = "simuvid_round2_20.csv", row.names = FALSE)
 
-
-# Round 3: n = 50, Sigma = 1, common noise
-simuvid.round1.50= data.frame(matrix(ncol = 7, nrow = 1))
-colnames(simuvid.round1.50) <- c("method","index","n.group","round",
-                                 "accuracy","avg.sd","avg.mudis")
-seed = 888
-for (i in  1:200){
-  set.seed(seed)
-  df = generate.curve(t.min=0,t.max=10,t.by=0.01,
-                      n.group=50,err.sd=1)
-  cluster.result = data.frame(matrix(ncol = 7, nrow = 4))
-  colnames(cluster.result) <- c("method","index","n.group","round",
-                                "accuracy","avg.sd","avg.mudis")
-  cluster.result$method = c("bsp","fpc","fem","fem")
-  cluster.result$index = c("all","all","bic","icl")
-  cluster.result$n.group = rep(50,each = 4)
-  cluster.result$round = rep("by = 0.01, sd = 1, common noise",each = 4)
-  df.clu = get.df.cluster(df,n.group = 50, knots.num = 20, nharm = 2)
-  
-  cluster.result$accuracy = get.clu.accuracy(df.clu, 50)
-  
-  df.bsp = get.clu.value(df, df.clu, 50, "bsp")
-  df.fpc = get.clu.value(df, df.clu, 50, "fpc")
-  df.bic = get.clu.value(df, df.clu, 50, "fem.bic")
-  df.icl = get.clu.value(df, df.clu, 50, "fem.icl")
-  cluster.result$avg.sd = c(df.bsp[1],df.fpc[1],df.bic[1],df.icl[1])
-  cluster.result$avg.mudis = c(df.bsp[2],df.fpc[2],df.bic[2],df.icl[2])
-  
-  simuvid.round1.50 = rbind(simuvid.round1.50,cluster.result)
-  seed = seed+10000*i
-}
-simuvid.round1.50 = na.omit(simuvid.round1.50)
-write.csv(simuvid.round1.50, file = "simuvid_round1_50.csv", row.names = FALSE)
-
-# Round 4: n = 50, Sigma = 2, common noise
-simuvid.round2.50= data.frame(matrix(ncol = 7, nrow = 1))
-colnames(simuvid.round2.50) <- c("method","index","n.group","round",
-                                 "accuracy","avg.sd","avg.mudis")
-seed = 888
-for (i in  1:200){
-  set.seed(seed)
-  df = generate.curve(t.min=0,t.max=10,t.by=0.01,
-                      n.group=50,err.sd=2)
-  cluster.result = data.frame(matrix(ncol = 7, nrow = 4))
-  colnames(cluster.result) <- c("method","index","n.group","round",
-                                "accuracy","avg.sd","avg.mudis")
-  cluster.result$method = c("bsp","fpc","fem","fem")
-  cluster.result$index = c("all","all","bic","icl")
-  cluster.result$n.group = rep(50,each = 4)
-  cluster.result$round = rep("by = 0.01, sd = 2, common noise",each = 4)
-  df.clu = get.df.cluster(df,n.group = 50, knots.num = 20, nharm = 7)
-  
-  cluster.result$accuracy = get.clu.accuracy(df.clu, 50)
-  
-  df.bsp = get.clu.value(df, df.clu, 50, "bsp")
-  df.fpc = get.clu.value(df, df.clu, 50, "fpc")
-  df.bic = get.clu.value(df, df.clu, 50, "fem.bic")
-  df.icl = get.clu.value(df, df.clu, 50, "fem.icl")
-  cluster.result$avg.sd = c(df.bsp[1],df.fpc[1],df.bic[1],df.icl[1])
-  cluster.result$avg.mudis = c(df.bsp[2],df.fpc[2],df.bic[2],df.icl[2])
-  
-  simuvid.round2.50 = rbind(simuvid.round2.50,cluster.result)
-  seed = seed+10000*i
-}
-simuvid.round2.50 = na.omit(simuvid.round2.50)
-write.csv(simuvid.round2.50, file = "simuvid_round2_50.csv", row.names = FALSE)
-
-
-# Round 5: n = 20, Sigma = 1, absolute-value proportion noise
+# Round 3: n = 20, Sigma = 1, absolute-value proportion noise
 simuvid.round3.20= data.frame(matrix(ncol = 7, nrow = 1))
 colnames(simuvid.round3.20) <- c("method","index","n.group","round",
                                  "accuracy","avg.sd","avg.mudis")
@@ -997,7 +756,7 @@ for (i in  1:50){
 
 simuvid.round3.20.1 = simuvid.round3.20
 seed = 888
-for (i in  1:50){ ## Some error at
+for (i in  1:50){ 
   set.seed(seed)
   df = generate.curve.ctvardiff(t.min=0,t.max=10,t.by=0.01,
                                 n.group=20,err.sd=1)
@@ -1053,7 +812,7 @@ for (i in  1:50){
 
 simuvid.round3.20.3 = simuvid.round3.20.2
 seed = 888888
-for (i in  1:50){ 
+for (i in  1:43){ ## stop at 44, finish 1:43
   set.seed(seed)
   df = generate.curve.ctvardiff(t.min=0,t.max=10,t.by=0.01,
                                 n.group=20,err.sd=1)
@@ -1078,10 +837,39 @@ for (i in  1:50){
   simuvid.round3.20.3 = rbind(simuvid.round3.20.3,cluster.result)
   seed = seed+1000
 }
-simuvid.round3.20.3 = na.omit(simuvid.round3.20.3)
-write.csv(simuvid.round3.20.3, file = "simuvid_round3_20.csv", row.names = FALSE)
 
-# Round 6: n = 20, Sigma = 2, absolute-value proportion noise
+simuvid.round3.20.4 = simuvid.round3.20.3
+seed = 66
+for (i in  1:7){ 
+  set.seed(seed)
+  df = generate.curve.ctvardiff(t.min=0,t.max=10,t.by=0.01,
+                                n.group=20,err.sd=1)
+  cluster.result = data.frame(matrix(ncol = 7, nrow = 4))
+  colnames(cluster.result) <- c("method","index","n.group","round",
+                                "accuracy","avg.sd","avg.mudis")
+  cluster.result$method = c("bsp","fpc","fem","fem")
+  cluster.result$index = c("all","all","bic","icl")
+  cluster.result$n.group = rep(20,each = 4)
+  cluster.result$round = rep("by = 0.01, sd = 1, varies noise",each = 4)
+  df.clu = get.df.cluster(df,n.group = 20, knots.num = 20, nharm = 2)
+  
+  cluster.result$accuracy = get.clu.accuracy(df.clu, 20)
+  
+  df.bsp = get.clu.value(df, df.clu, 20, "bsp")
+  df.fpc = get.clu.value(df, df.clu, 20, "fpc")
+  df.bic = get.clu.value(df, df.clu, 20, "fem.bic")
+  df.icl = get.clu.value(df, df.clu, 20, "fem.icl")
+  cluster.result$avg.sd = c(df.bsp[1],df.fpc[1],df.bic[1],df.icl[1])
+  cluster.result$avg.mudis = c(df.bsp[2],df.fpc[2],df.bic[2],df.icl[2])
+  
+  simuvid.round3.20.4 = rbind(simuvid.round3.20.4,cluster.result)
+  seed = seed+1000
+}
+
+simuvid.round3.20.4 = na.omit(simuvid.round3.20.4)
+write.csv(simuvid.round3.20.4, file = "simuvid_round3_20.csv", row.names = FALSE)
+
+# Round 4: n = 20, Sigma = 2, absolute-value proportion noise
 simuvid.round4.20= data.frame(matrix(ncol = 7, nrow = 1))
 colnames(simuvid.round4.20) <- c("method","index","n.group","round",
                                  "accuracy","avg.sd","avg.mudis")
@@ -1114,84 +902,15 @@ for (i in  1:200){
 simuvid.round4.20 = na.omit(simuvid.round4.20)
 write.csv(simuvid.round4.20, file = "simuvid_round4_20.csv", row.names = FALSE)
 
-# Round 7: n = 50, Sigma = 1, absolute-value proportion noise
-simuvid.round3.50= data.frame(matrix(ncol = 7, nrow = 1))
-colnames(simuvid.round3.50) <- c("method","index","n.group","round",
-                                 "accuracy","avg.sd","avg.mudis")
-seed = 888
-for (i in  1:200){
-  set.seed(seed)
-  df = generate.curve.ctvardiff(t.min=0,t.max=10,t.by=0.01,
-                                n.group=50,err.sd=1)
-  cluster.result = data.frame(matrix(ncol = 7, nrow = 4))
-  colnames(cluster.result) <- c("method","index","n.group","round",
-                                "accuracy","avg.sd","avg.mudis")
-  cluster.result$method = c("bsp","fpc","fem","fem")
-  cluster.result$index = c("all","all","bic","icl")
-  cluster.result$n.group = rep(50,each = 4)
-  cluster.result$round = rep("by = 0.01, sd = 1, varies noise",each = 4)
-  df.clu = get.df.cluster(df,n.group = 50, knots.num = 20, nharm = 2)
-  
-  cluster.result$accuracy = get.clu.accuracy(df.clu, 50)
-  
-  df.bsp = get.clu.value(df, df.clu, 50, "bsp")
-  df.fpc = get.clu.value(df, df.clu, 50, "fpc")
-  df.bic = get.clu.value(df, df.clu, 50, "fem.bic")
-  df.icl = get.clu.value(df, df.clu, 50, "fem.icl")
-  cluster.result$avg.sd = c(df.bsp[1],df.fpc[1],df.bic[1],df.icl[1])
-  cluster.result$avg.mudis = c(df.bsp[2],df.fpc[2],df.bic[2],df.icl[2])
-  
-  simuvid.round3.50 = rbind(simuvid.round3.50,cluster.result)
-  seed = seed+10000*i
-}
-simuvid.round3.50 = na.omit(simuvid.round3.50)
-write.csv(simuvid.round3.50, file = "simuvid_round3_50.csv", row.names = FALSE)
-
-# Round 8: n = 50, Sigma = 2, absolute-value proportion noise
-simuvid.round4.50= data.frame(matrix(ncol = 7, nrow = 1))
-colnames(simuvid.round4.50) <- c("method","index","n.group","round",
-                                 "accuracy","avg.sd","avg.mudis")
-seed = 888
-for (i in  1:200){
-  set.seed(seed)
-  df = generate.curve.ctvardiff(t.min=0,t.max=10,t.by=0.01,
-                                n.group=50,err.sd=2)
-  cluster.result = data.frame(matrix(ncol = 7, nrow = 4))
-  colnames(cluster.result) <- c("method","index","n.group","round",
-                                "accuracy","avg.sd","avg.mudis")
-  cluster.result$method = c("bsp","fpc","fem","fem")
-  cluster.result$index = c("all","all","bic","icl")
-  cluster.result$n.group = rep(50,each = 4)
-  cluster.result$round = rep("by = 0.01, sd = 2, varies noise",each = 4)
-  df.clu = get.df.cluster(df,n.group = 50, knots.num = 20, nharm = 4)
-  
-  cluster.result$accuracy = get.clu.accuracy(df.clu, 50)
-  
-  df.bsp = get.clu.value(df, df.clu, 50, "bsp")
-  df.fpc = get.clu.value(df, df.clu, 50, "fpc")
-  df.bic = get.clu.value(df, df.clu, 50, "fem.bic")
-  df.icl = get.clu.value(df, df.clu, 50, "fem.icl")
-  cluster.result$avg.sd = c(df.bsp[1],df.fpc[1],df.bic[1],df.icl[1])
-  cluster.result$avg.mudis = c(df.bsp[2],df.fpc[2],df.bic[2],df.icl[2])
-  
-  simuvid.round4.50 = rbind(simuvid.round4.50,cluster.result)
-  seed = seed+10000*i
-}
-simuvid.round4.50 = na.omit(simuvid.round4.50)
-write.csv(simuvid.round4.50, file = "simuvid_round4_50.csv", row.names = FALSE)
 
 ### Summary analysis of the cluster validation
 r1.20.raw = read.csv("simuvid_round1_20.csv",header = TRUE)
-r1.50.raw = read.csv("simuvid_round1_50.csv",header = TRUE)
 
 r2.20.raw = read.csv("simuvid_round2_20.csv",header = TRUE)
-r2.50.raw = read.csv("simuvid_round2_50.csv",header = TRUE)
 
 r3.20.raw = read.csv("simuvid_round3_20.csv",header = TRUE)
-r3.50.raw = read.csv("simuvid_round3_50.csv",header = TRUE)
 
 r4.20.raw = read.csv("simuvid_round4_20.csv",header = TRUE)
-r4.50.raw = read.csv("simuvid_round4_50.csv",header = TRUE)
 
 #round 1
 r1.20 = r1.20.raw%>%group_by(round, n.group, method,
@@ -1225,34 +944,3 @@ r4.20 = r4.20.raw%>%group_by(round, n.group, method,
                                                 mean.mudis = mean(avg.mudis))
 r4.20
 
-#round 5
-r1.50 = r1.50.raw%>%group_by(round, n.group, method,
-                             index)%>%summarize(mean.accuracy = mean(accuracy),
-                                                sd.accuracy = sd(accuracy),
-                                                mean.sd = mean(avg.sd),
-                                                mean.mudis = mean(avg.mudis))
-r1.50
-
-#round 6
-r2.50 = r2.50.raw%>%group_by(round, n.group, method,
-                             index)%>%summarize(mean.accuracy = mean(accuracy),
-                                                sd.accuracy = sd(accuracy),
-                                                mean.sd = mean(avg.sd),
-                                                mean.mudis = mean(avg.mudis))
-r2.50
-
-#round 7
-r3.50 = r3.50.raw%>%group_by(round, n.group, method,
-                             index)%>%summarize(mean.accuracy = mean(accuracy),
-                                                sd.accuracy = sd(accuracy),
-                                                mean.sd = mean(avg.sd),
-                                                mean.mudis = mean(avg.mudis))
-r3.50
-
-#round 8
-r4.50 = r4.50.raw%>%group_by(round, n.group, method,
-                             index)%>%summarize(mean.accuracy = mean(accuracy),
-                                                sd.accuracy = sd(accuracy),
-                                                mean.sd = mean(avg.sd),
-                                                mean.mudis = mean(avg.mudis))
-r4.50

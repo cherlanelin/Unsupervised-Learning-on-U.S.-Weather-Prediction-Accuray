@@ -23,7 +23,7 @@ packages <- c("ggplot2", "dplyr", "tidyverse", "tidyr", "geosphere",
               "ggridges","scales","geofacet","lubridate","fda","RColorBrewer",
               "weathermetrics","ggrepel","DT","forecast","tseries","maps",
               "ggthemes","gridExtra","factoextra", "fiftystater","randomForest", 
-              "NbClust","funFEM","fda.usc","tclust","dtwclust")
+              "NbClust","funFEM","fda.usc","tclust","dtwclust","mapproj")
 ipak(packages)
 ## The package fiftystater is for the U.S map visualization, and it may be unavailable on CRAN
 ## So its achieved file is attached in the Github repository with the path 
@@ -96,11 +96,10 @@ df.min.max <- df %>% dplyr::group_by(city_index,forecast_date,forecast_made_on,c
          week = week(forecast_date),
          day = wday(forecast_date,label = T))
 
-df.all <- left_join( x = df.min.max, y = hist %>% select(-Min_TemperatureF,
-                                                         -Mean_TemperatureF,
-                                                         -Max_TemperatureF), 
-                     by = c("forecast_date"= "Date", "AirPtCd" = "AirPtCd")
-)
+df.all <- left_join( x = df.min.max, y = hist %>% dplyr::select(-`Min_TemperatureF`,
+                                                         Mean_TemperatureF,
+                                                         Max_TemperatureF), 
+                     by = c("forecast_date"= "Date", "AirPtCd" = "AirPtCd"))
 
 ## We load the final dataset to a RData for further convenience
 save(df.all, file = "df.min.max.RData")
@@ -364,10 +363,10 @@ for (rr in 1:8){
   kfpc4.state.4.ts.temp = matrix(unlist(mindiff.state.1[,names(mindiff.state.1)%in%kfpc4.state.4.temp]),ncol= table(fpca.smooth.temp$fpca4)[4])
   kfpc4.state.4.fd.temp = smooth.basis(argvals = mindiff.date.1, y = kfpc4.state.4.ts.temp, err1.basis)$fd
   
-  sd.all.temp = c(int.simpson(sd.fd(kfpc4.state.1.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.2.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.3.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.4.fd.temp),equi=TRUE,method="TRAPZ"))
+  sd.all.temp = c(int.simpson(sd.fd(kfpc4.state.1.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.2.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.3.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.4.fd.temp),method="TRAPZ"))
   sd.fpc.clu4[rr,2] <- mean(sd.all.temp) 
 }
 
@@ -410,10 +409,10 @@ for (rr in 1:8){
   kfpc4.state.4.ts.temp = matrix(unlist(mindiff.state.1[,names(mindiff.state.1)%in%kfpc4.state.4.temp]),ncol= table(fpca.ts.1.temp$bsp4)[4])
   kfpc4.state.4.fd.temp = smooth.basis(argvals = mindiff.date.1, y = kfpc4.state.4.ts.temp, err1.basis)$fd
   
-  sd.all.temp = c(int.simpson(sd.fd(kfpc4.state.1.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.2.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.3.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.4.fd.temp),equi=TRUE,method="TRAPZ"))
+  sd.all.temp = c(int.simpson(sd.fd(kfpc4.state.1.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.2.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.3.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.4.fd.temp),method="TRAPZ"))
   sd.bsp.clu4[rr,2] <- mean(sd.all.temp) 
 }
 
@@ -456,10 +455,10 @@ for (rr in 1:8){
   kfpc4.state.4.ts.temp = matrix(unlist(mindiff.state.1[,names(mindiff.state.1)%in%kfpc4.state.4.temp]),ncol= table(fpca.ts.1.temp$fem4)[4])
   kfpc4.state.4.fd.temp = smooth.basis(argvals = mindiff.date.1, y = kfpc4.state.4.ts.temp, err1.basis)$fd
   
-  sd.all.temp = c(int.simpson(sd.fd(kfpc4.state.1.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.2.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.3.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.4.fd.temp),equi=TRUE,method="TRAPZ"))
+  sd.all.temp = c(int.simpson(sd.fd(kfpc4.state.1.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.2.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.3.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.4.fd.temp),method="TRAPZ"))
   sd.fem.clu4[rr,2] <- mean(sd.all.temp) 
 }
 
@@ -502,10 +501,10 @@ for (rr in 1:8){
   kfpc4.state.4.ts.temp = matrix(unlist(mindiff.state.1[,names(mindiff.state.1)%in%kfpc4.state.4.temp]),ncol= table(fpca.ts.1.temp$fem4)[4])
   kfpc4.state.4.fd.temp = smooth.basis(argvals = mindiff.date.1, y = kfpc4.state.4.ts.temp, err1.basis)$fd
   
-  sd.all.temp = c(int.simpson(sd.fd(kfpc4.state.1.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.2.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.3.fd.temp),equi=TRUE,method="TRAPZ"),
-                  int.simpson(sd.fd(kfpc4.state.4.fd.temp),equi=TRUE,method="TRAPZ"))
+  sd.all.temp = c(int.simpson(sd.fd(kfpc4.state.1.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.2.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.3.fd.temp),method="TRAPZ"),
+                  int.simpson(sd.fd(kfpc4.state.4.fd.temp),method="TRAPZ"))
   sd.fem.clu4[rr,2] <- mean(sd.all.temp) 
 }
 
@@ -555,13 +554,6 @@ minWeightBipartiteMatching(fpca.smooth$bsp.4,fpca.smooth$fpc.4.large)
 minWeightBipartiteMatching(fpca.smooth$bsp.4,fpca.smooth$fem.4)
 minWeightBipartiteMatching(fpca.smooth$fem.4,fpca.smooth$fem.4.icl)
 
-fpca.smooth$fem.4[fpca.smooth$fem.4 == 1] = 0
-fpca.smooth$fem.4[fpca.smooth$fem.4 == 2] = 1
-fpca.smooth$fem.4[fpca.smooth$fem.4 == 0] = 2
-
-fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 1] = 0
-fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 2] = 1
-fpca.smooth$fem.4.icl[fpca.smooth$fem.4.icl == 0] = 2
 ############################## Final Result Visualization ###################################
 ######## Map Visualization
 region <- read.csv("region-to-state.new.csv",header = T, stringsAsFactors = F)
@@ -701,16 +693,16 @@ plot.ci = function(result.df, original.ts, method){
   plot.fd(se_hat_l,add = TRUE,col = "red",lty = 2)
   plot.fd(se_hat_u,add = TRUE,col = "red",lty = 2)
   
-  sd.all = c(int.simpson(sd.fd(temp.state.1.fd),equi=TRUE,method="TRAPZ"),
-             int.simpson(sd.fd(temp.state.2.fd),equi=TRUE,method="TRAPZ"),
-             int.simpson(sd.fd(temp.state.3.fd),equi=TRUE,method="TRAPZ"),
-             int.simpson(sd.fd(temp.state.4.fd),equi=TRUE,method="TRAPZ"))
+  sd.all = c(int.simpson(sd.fd(temp.state.1.fd),method="TRAPZ"),
+             int.simpson(sd.fd(temp.state.2.fd), method="TRAPZ"),
+             int.simpson(sd.fd(temp.state.3.fd), method="TRAPZ"),
+             int.simpson(sd.fd(temp.state.4.fd), method="TRAPZ"))
   
   rank.df = data.frame(sd.mu = mean(sd.all),
-                       mu.clu1 = int.simpson(mean.fd(temp.state.1.fd),equi=TRUE,method="TRAPZ"),
-                       mu.clu2 = int.simpson(mean.fd(temp.state.2.fd),equi=TRUE,method="TRAPZ"),
-                       mu.clu3 = int.simpson(mean.fd(temp.state.3.fd),equi=TRUE,method="TRAPZ"),
-                       mu.clu4 = int.simpson(mean.fd(temp.state.4.fd),equi=TRUE,method="TRAPZ"))
+                       mu.clu1 = int.simpson(mean.fd(temp.state.1.fd), method="TRAPZ"),
+                       mu.clu2 = int.simpson(mean.fd(temp.state.2.fd), method="TRAPZ"),
+                       mu.clu3 = int.simpson(mean.fd(temp.state.3.fd), method="TRAPZ"),
+                       mu.clu4 = int.simpson(mean.fd(temp.state.4.fd), method="TRAPZ"))
   
   return(rank.df)
 }

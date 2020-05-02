@@ -41,7 +41,7 @@ generate.curve.real<-function(n.group, plotting = F){
   # IN cluster 1
   clu.1 = cluster.result[cluster.result$fem.4 == 1,]$state
   clu.1.raw = mindiff.state.1[,names(mindiff.state.1)%in%clu.1]
-  clu.1.rawmat.1 = matrix(unlist(clu.1.raw),ncol = 12)
+  clu.1.rawmat.1 = matrix(unlist(clu.1.raw),ncol = ncol(clu.1.raw))
   bks.1 = as.Date(quantile(unclass(as.Date(mindiff.date.1$date)), seq(0,1,length = 15)), origin = "1970-01-01")
   err1.basis = create.bspline.basis(rangeval = c(min(mindiff.date.1$date),max(mindiff.date.1$date)), breaks = bks.1, norder = 4) 
   clu.1.fd<-smooth.basis(argvals = mindiff.date.1$date, y = clu.1.rawmat.1, err1.basis)$fd
@@ -67,7 +67,7 @@ generate.curve.real<-function(n.group, plotting = F){
   # IN cluster 2
   clu.2 = cluster.result[cluster.result$fem.4 == 2,]$state
   clu.2.raw = mindiff.state.1[,names(mindiff.state.1)%in%clu.2]
-  clu.2.rawmat.1 = matrix(unlist(clu.2.raw),ncol = 7)
+  clu.2.rawmat.1 = matrix(unlist(clu.2.raw),ncol = ncol(clu.2.raw))
   clu.2.fd<-smooth.basis(argvals = mindiff.date.1$date, y = clu.2.rawmat.1, err1.basis)$fd
   clu.2.fpca = pca.fd(clu.2.fd,nharm=3) 
   clu.2.fpca.loading = clu.2.fpca$harmonics$coefs
@@ -91,7 +91,7 @@ generate.curve.real<-function(n.group, plotting = F){
   # IN cluster 3
   clu.3 = cluster.result[cluster.result$fem.4 == 3,]$state
   clu.3.raw = mindiff.state.1[,names(mindiff.state.1)%in%clu.3]
-  clu.3.rawmat.1 = matrix(unlist(clu.3.raw),ncol = 5)
+  clu.3.rawmat.1 = matrix(unlist(clu.3.raw),ncol = ncol(clu.3.raw))
   clu.3.fd<-smooth.basis(argvals = mindiff.date.1$date, y = clu.3.rawmat.1, err1.basis)$fd
   clu.3.fpca = pca.fd(clu.3.fd,nharm=3) 
   clu.3.fpca.loading = clu.3.fpca$harmonics$coefs
@@ -115,7 +115,7 @@ generate.curve.real<-function(n.group, plotting = F){
   # IN cluster 4
   clu.4 = cluster.result[cluster.result$fem.4 == 4,]$state
   clu.4.raw = mindiff.state.1[,names(mindiff.state.1)%in%clu.4]
-  clu.4.rawmat.1 = matrix(unlist(clu.4.raw),ncol = 16)
+  clu.4.rawmat.1 = matrix(unlist(clu.4.raw),ncol = ncol(clu.4.raw))
   clu.4.fd<-smooth.basis(argvals = mindiff.date.1$date, y = clu.4.rawmat.1, err1.basis)$fd
   clu.4.fpca = pca.fd(clu.4.fd,nharm=3) 
   clu.4.fpca.loading = clu.4.fpca$harmonics$coefs
@@ -200,7 +200,7 @@ cluster.select.num.real = function(simu.all,n.group,plotting = FALSE){
 simunum.real.20= data.frame(matrix(ncol = 4, nrow = 1))
 colnames(simunum.real.20) <- c("method","index","clu.num","n.group")
 seed = 888
-for (i in 1:52){
+for (i in 1:52){ 
   set.seed(seed)
   df = generate.curve.real(20)
   clunum.result = data.frame(matrix(ncol = 4, nrow = 4))
@@ -213,6 +213,7 @@ for (i in 1:52){
   simunum.real.20 = rbind(simunum.real.20,clunum.result)
   seed = seed+10000*i
 }
+
 
 seed = 8888
 for (i in 1:42){
@@ -398,10 +399,6 @@ get.clu.accuracy = function(df.clu, n.group){
   return(c(bsp.accu,fpc.accu,fem.bic.accu,fem.icl.accu))
 }
 
-# test
-try = generate.curve.real(20, plotting = T)
-try.clu = get.df.cluster(try,20)
-try.acc = get.clu.accuracy(try.clu,20)
 
 #################Clustering Number Selection Validation Simulation##########################
 simuvid.real.20= data.frame(matrix(ncol = 4, nrow = 1))
@@ -834,6 +831,7 @@ clunum.sim.noise.20.raw = read.csv("simunum_realraw_noise_20.csv",header = TRUE)
 clunum.sim.noise.20.raw.summary = clunum.sim.noise.20.raw%>%group_by(n.group, method,
                                                          index, clu.num)%>%summarize(count = n())
 clunum.sim.noise.20.raw.summary
+
 
 ################### Cluster Result Validation on Raw Data #############################
 get.clu.accuracy.raw = function(df.clu, n.group){
